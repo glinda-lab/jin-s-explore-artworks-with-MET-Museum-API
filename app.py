@@ -6,6 +6,7 @@ from io import BytesIO
 import math
 
 API_BASE = "https://collectionapi.metmuseum.org/public/collection/v1"
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; StreamlitApp/1.0; +https://streamlit.io)"}
 
 st.set_page_config(page_title="MET Artwork Browser", layout="wide")
 
@@ -21,7 +22,7 @@ per_page = st.sidebar.selectbox("Results per page", [12, 24, 36], index=1)
 if st.sidebar.button("Search"):
     st.session_state['query_changed'] = True
 
-# Use session_state to store results and current page
+# Session state setup
 if 'results' not in st.session_state:
     st.session_state['results'] = []
 if 'total' not in st.session_state:
@@ -30,19 +31,21 @@ if 'page' not in st.session_state:
     st.session_state['page'] = 1
 
 def met_search(q, hasImages=True):
+    """Search artworks by keyword."""
     params = {"q": q}
     if hasImages:
         params['hasImages'] = 'true'
-    r = requests.get(f"{API_BASE}/search", params=params, timeout=10)
-    r.raise_for_status()
-    return r.json()  # contains total and objectIDs
-
-def get_object(obj_id):
-    r = requests.get(f"{API_BASE}/objects/{obj_id}", timeout=10)
+    r = requests.get(f"{API_BASE}/search", params=params, headers=HEADERS, timeout=10)
     r.raise_for_status()
     return r.json()
 
-# Trigger search when query changed or first load
+def get_object(obj_id):
+    """Get artwork details by object ID."""
+    r = requests.get(f"{API_BASE}/objects/{obj_id}", headers=HEADERS, timeout=10)
+    r.raise_for_status()
+    return r.json()
+
+# --- Perform search
 if st.session_state.get('query_changed', False) or st.session_state['results'] == []:
     try:
         with st.spinner("Searching the MET Collection..."):
@@ -55,14 +58,16 @@ if st.session_state.get('query_changed', False) or st.session_state['results'] =
     except Exception as e:
         st.error(f"Search failed: {e}")
 
-# Pagination controls
+# --- Pagination and display
 total = st.session_state['total']
 ids = st.session_state['results']
+
 if total == 0:
     st.info("No results found. Try another keyword.")
 else:
     pages = math.ceil(len(ids) / per_page)
     left_col, mid_col, right_col = st.columns([1,4,1])
+
     with left_col:
         if st.button("Previous") and st.session_state['page'] > 1:
             st.session_state['page'] -= 1
@@ -70,9 +75,8 @@ else:
         if st.button("Next") and st.session_state['page'] < pages:
             st.session_state['page'] += 1
     with mid_col:
-        st.markdown(f"**Total: {total} — Page {st.session_state['page']} of {pages}**")
+        st.markdown(f"**Total results:** {total} — **Page:** {st.session_state['page']} / {pages}")
 
-    # show grid
     start = (st.session_state['page'] - 1) * per_page
     end = start + per_page
     page_ids = ids[start:end]
@@ -85,7 +89,7 @@ else:
             title = meta.get('title', 'Untitled')
             artist = meta.get('artistDisplayName', '')
             year = meta.get('objectDate', '')
-        except Exception as e:
+        except Exception:
             img_url = None
             title = f"Error loading {obj_id}"
             artist = ""
@@ -95,7 +99,7 @@ else:
         with col:
             if img_url:
                 try:
-                    resp = requests.get(img_url, timeout=10)
+                    resp = requests.get(img_url, headers=HEADERS, timeout=10)
                     img = Image.open(BytesIO(resp.content))
                     st.image(img, use_column_width=True)
                 except:
@@ -107,7 +111,7 @@ else:
             if st.button(f"Details: {obj_id}", key=f"detail_{obj_id}"):
                 st.session_state['selected'] = obj_id
 
-# Detail view
+# --- Detail View
 if 'selected' in st.session_state:
     sel = st.session_state['selected']
     try:
@@ -118,7 +122,7 @@ if 'selected' in st.session_state:
         with cols[0]:
             img_url = meta.get('primaryImage') or meta.get('primaryImageSmall')
             if img_url:
-                resp = requests.get(img_url, timeout=10)
+                resp = requests.get(img_url, headers=HEADERS, timeout=10)
                 img = Image.open(BytesIO(resp.content))
                 st.image(img, use_column_width=True)
             else:
