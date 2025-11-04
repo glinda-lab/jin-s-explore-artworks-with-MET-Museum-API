@@ -9,16 +9,16 @@ API_BASE = "https://collectionapi.metmuseum.org/public/collection/v1"
 
 st.set_page_config(page_title="MET Artwork Browser", layout="wide")
 
-st.title("MET 컬렉션 브라우저")
-st.markdown("MET Museum Collection API를 사용한 간단한 스트림릿 갤러리 예제")
+st.title("MET Artwork Browser")
+st.markdown("A simple Streamlit gallery app powered by the MET Museum Collection API.")
 
 # --- Sidebar
-st.sidebar.header("검색 & 옵션")
-query = st.sidebar.text_input("검색어 (예: sunflowers, Monet, 19th century)", value="sunflower")
-only_with_images = st.sidebar.checkbox("이미지 있는 것만", value=True)
-per_page = st.sidebar.selectbox("한 페이지에 표시", [12, 24, 36], index=1)
+st.sidebar.header("Search & Options")
+query = st.sidebar.text_input("Keyword (e.g., sunflowers, Monet, 19th century)", value="sunflower")
+only_with_images = st.sidebar.checkbox("Show only items with images", value=True)
+per_page = st.sidebar.selectbox("Results per page", [12, 24, 36], index=1)
 
-if st.sidebar.button("검색"):
+if st.sidebar.button("Search"):
     st.session_state['query_changed'] = True
 
 # Use session_state to store results and current page
@@ -45,7 +45,7 @@ def get_object(obj_id):
 # Trigger search when query changed or first load
 if st.session_state.get('query_changed', False) or st.session_state['results'] == []:
     try:
-        with st.spinner("MET에서 검색 중..."):
+        with st.spinner("Searching the MET Collection..."):
             res = met_search(query, only_with_images)
             ids = res.get('objectIDs') or []
             st.session_state['total'] = res.get('total', 0)
@@ -53,24 +53,24 @@ if st.session_state.get('query_changed', False) or st.session_state['results'] =
             st.session_state['page'] = 1
             st.session_state['query_changed'] = False
     except Exception as e:
-        st.error(f"검색 실패: {e}")
+        st.error(f"Search failed: {e}")
 
 # Pagination controls
 total = st.session_state['total']
 ids = st.session_state['results']
 if total == 0:
-    st.info("검색결과가 없습니다. 다른 검색어를 시도해 보세요.")
+    st.info("No results found. Try another keyword.")
 else:
     pages = math.ceil(len(ids) / per_page)
     left_col, mid_col, right_col = st.columns([1,4,1])
     with left_col:
-        if st.button("이전") and st.session_state['page'] > 1:
+        if st.button("Previous") and st.session_state['page'] > 1:
             st.session_state['page'] -= 1
     with right_col:
-        if st.button("다음") and st.session_state['page'] < pages:
+        if st.button("Next") and st.session_state['page'] < pages:
             st.session_state['page'] += 1
     with mid_col:
-        st.markdown(f"**총 {total}건 — 페이지 {st.session_state['page']} / {pages}**")
+        st.markdown(f"**Total: {total} — Page {st.session_state['page']} of {pages}**")
 
     # show grid
     start = (st.session_state['page'] - 1) * per_page
@@ -99,15 +99,15 @@ else:
                     img = Image.open(BytesIO(resp.content))
                     st.image(img, use_column_width=True)
                 except:
-                    st.text("이미지 로드 실패")
+                    st.text("Image load failed")
             else:
-                st.text("이미지 없음")
+                st.text("No image available")
 
             st.caption(f"**{title}**\n{artist} · {year}")
-            if st.button(f"상세보기: {obj_id}", key=f"detail_{obj_id}"):
+            if st.button(f"Details: {obj_id}", key=f"detail_{obj_id}"):
                 st.session_state['selected'] = obj_id
 
-# 상세 보기 모달(사이드 혹은 하단)
+# Detail view
 if 'selected' in st.session_state:
     sel = st.session_state['selected']
     try:
@@ -122,20 +122,20 @@ if 'selected' in st.session_state:
                 img = Image.open(BytesIO(resp.content))
                 st.image(img, use_column_width=True)
             else:
-                st.text("이미지 없음")
+                st.text("No image available")
         with cols[1]:
-            st.markdown(f"**작가:** {meta.get('artistDisplayName','-')}")
-            st.markdown(f"**제작연도:** {meta.get('objectDate','-')}")
-            st.markdown(f"**소장처:** {meta.get('repository','-')}")
-            st.markdown(f"**재료/기법:** {meta.get('medium','-')}")
-            st.markdown(f"**분류:** {meta.get('classification','-')}")
+            st.markdown(f"**Artist:** {meta.get('artistDisplayName','-')}")
+            st.markdown(f"**Date:** {meta.get('objectDate','-')}")
+            st.markdown(f"**Repository:** {meta.get('repository','-')}")
+            st.markdown(f"**Medium:** {meta.get('medium','-')}")
+            st.markdown(f"**Classification:** {meta.get('classification','-')}")
             if meta.get('creditLine'):
-                st.markdown(f"**출처:** {meta.get('creditLine')}")
+                st.markdown(f"**Credit Line:** {meta.get('creditLine')}")
             if meta.get('objectURL'):
-                st.markdown(f"[MET 페이지로 이동]({meta.get('objectURL')})")
-            if st.button("닫기"):
+                st.markdown(f"[View on MET website]({meta.get('objectURL')})")
+            if st.button("Close"):
                 del st.session_state['selected']
     except Exception as e:
-        st.error(f"상세 불러오기 실패: {e}")
-        if st.button("닫기 에러"):
+        st.error(f"Failed to load details: {e}")
+        if st.button("Close error"):
             del st.session_state['selected']
